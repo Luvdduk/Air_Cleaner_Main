@@ -1,9 +1,12 @@
-from gpiozero import Button
+from gpiozero import Button, LED, RGBLED, OutputDevice, DigitalOutputDevice
+from colorzero import Color
 from signal import pause
 from threading import Thread
 import time
 import serial
 from PMS7003 import PMS7003
+import RPi.GPIO as GPIO
+
 
 
 power_state=0
@@ -11,22 +14,31 @@ power_state=0
 #먼지센서 오브젝트
 dustlib = PMS7003()
 
-# Baud Rate
 Speed = 9600
-
-# USE PORT
 SERIAL_PORT = '/dev/ttyUSB0'
 
 # led r:16 g:20 b:21
 # 릴레이: 19
+# fan = OutputDevice(19)
+fan = LED(19)
+
+led = RGBLED(16, 20, 21)
+
+# led_r = LED(16)
+# led_g = LED(20)
+# led_b = LED(21)
+
+
+
+
 
 
 # 파워 모드변경
 def power():
     global power_state
     # 전원 스위치 gpio26
-    button = Button(26)
-    button.when_pressed = powerctrl
+    powersw = Button(26)
+    powersw.when_pressed = powerctrl
     pause()
 # 꺼짐: 0, 켜짐: 1, 자동: 2
 def powerctrl():
@@ -45,43 +57,65 @@ def powerctrl():
         return
 
 
-def update_Dust():
-    while True:
-        #serial setting
-        ser = serial.Serial(SERIAL_PORT, Speed, timeout = 1)
-        buffer = ser.read(1024)
+def fanCtrl():
+    global power_state
 
-        if(dustlib.protocol_chk(buffer)):
-            data = dustlib.unpack_data(buffer)
-
-            pm1 = data[dustlib.DUST_PM1_0_ATM]
-            pm25 = data[dustlib.DUST_PM2_5_ATM]
-            pm10 = data[dustlib.DUST_PM10_0_ATM]
-            
-            print ("PMS 7003 dust data")
-            # print ("PM 1.0 : %s" % (data[dustlib.DUST_PM1_0_ATM]))
-            # print ("PM 2.5 : %s" % (data[dustlib.DUST_PM2_5_ATM]))
-            # print ("PM 10.0 : %s" % (data[dustlib.DUST_PM10_0_ATM]))
-            print ("PM 1.0 : %s" % (pm1))
-            print ("PM 2.5 : %s" % (pm25))
-            print ("PM 10.0 : %s" % (pm10))
-
+    if power_state == 0:
+        print("팬꺼짐")
+        fan.off()
+    if power_state == 1:
+        print("팬켜짐")
+        fan.on()
+    if power_state == 2:
+        print("팬자동")
+        if pm25 >=30 :
+            fan.on()
         else:
-            print ("data read Err")
-        time.sleep(1)
+            fan.off()
+
+
+
+
+#메인루프에 추가
+
+# def update_Dust():
+#     while True:
+#         #serial setting
+#         ser = serial.Serial(SERIAL_PORT, Speed, timeout = 1)
+#         buffer = ser.read(1024)
+
+#         if(dustlib.protocol_chk(buffer)):
+#             data = dustlib.unpack_data(buffer)
+
+#             pm1 = data[dustlib.DUST_PM1_0_ATM]
+#             pm25 = data[dustlib.DUST_PM2_5_ATM]
+#             pm10 = data[dustlib.DUST_PM10_0_ATM]
+            
+#             print ("PMS 7003 dust data")
+#             # print ("PM 1.0 : %s" % (data[dustlib.DUST_PM1_0_ATM]))
+#             # print ("PM 2.5 : %s" % (data[dustlib.DUST_PM2_5_ATM]))
+#             # print ("PM 10.0 : %s" % (data[dustlib.DUST_PM10_0_ATM]))
+#             print ("PM 1.0 : %s" % (pm1))
+#             print ("PM 2.5 : %s" % (pm25))
+#             print ("PM 10.0 : %s" % (pm10))
+
+#         else:
+#             print ("data read Err")
+#         time.sleep(1)
 
 # 메인루프
 def mainloop():
     global power_state
-    
+    global led
+
     while True:
-        # 먼지센서
+        # 먼지센서 동작
         ser = serial.Serial(SERIAL_PORT, Speed, timeout = 1)
         buffer = ser.read(1024)
 
         if(dustlib.protocol_chk(buffer)):
             data = dustlib.unpack_data(buffer)
-            
+
             global pm1
             global pm25
             global pm10
@@ -100,24 +134,31 @@ def mainloop():
         else:
             print ("data read Err")
         
+        # 전원 상태에 따른 동작
 
         if power_state == 0:
             print("전원꺼짐")
+            fan.off()
         if power_state == 1:
             print("전원켜짐")
+            fan.on()
         if power_state == 2:
             print("자동모드")
-        time.sleep(1)
+            if pm25 >=30 :
+                fan.on()
+            else:
+                fan.off()
+        time.sleep(0.3)
 
-
-
-
-
+# rgbled 제어
+# led.color = Color("red")
+# led.color = Color("green")
+# led.color = Color("yellow")
 
 
 if __name__ == "__main__":
     # 쓰레딩
     Thread(target=power).start()
     Thread(target=mainloop).start()
-    Thread(target=update_Dust).start()
+    # Thread(target=update_Dust).start()
     
