@@ -28,21 +28,18 @@ fan = OutputDevice(19)
 
 led = RGBLED(16, 20, 21)
 
-lcd.lcd_init()
-
 # led_r = LED(16)
 # led_g = LED(20)
 # led_b = LED(21)
 
 
-
+lcd.lcd_init()
 
 
 
 # 파워 모드변경
 def power():
     global power_state
-    # 전원 스위치 gpio26
     powersw.when_pressed = powerctrl
     pause()
 # 꺼짐: 0, 켜짐: 1, 자동: 2
@@ -68,18 +65,6 @@ def powerctrl():
         # fan.off()
         return
 
-
-# def fanCtrl():
-#     global power_state
-
-#     if power_state == 0:
-#         print("팬꺼짐")
-        
-#     if power_state == 1:
-#         print("팬켜짐")
-        
-#     if power_state == 2:
-#         print("팬자동")
         
 
 
@@ -116,15 +101,19 @@ def display_dust(duststate1, duststate2, duststate3):
     # 좋음
     if duststate3 <= 30 and (duststate1 and duststate2) <= 15 :
         lcd.lcd_string("     GOOD      ", lcd.LCD_LINE_1)
+        led.color = Color("blue")
     # 보통
     elif  duststate3 <= 80 or (duststate1 or duststate2) <= 35:
         lcd.lcd_string("     NORMAL    ", lcd.LCD_LINE_1)
+        led.color = Color("green")
     # 나쁨
     elif duststate3 <= 150 or (duststate1 or duststate2) <= 75:
         lcd.lcd_string("      BAD      ", lcd.LCD_LINE_1)
+        led.color = Color("yellow")
     # 매우나쁨
     elif duststate3 > 150 or (duststate1 or duststate2) <= 75:
         lcd.lcd_string("    VERY BAD   ", lcd.LCD_LINE_1)
+        led.color = Color("red")
     
     # pm1.0 표시
     lcd.lcd_string("pm1.0: %dug/m3 " %duststate1, lcd.LCD_LINE_2)
@@ -205,10 +194,6 @@ def mainloop():
                 fan.off()
         time.sleep(0.3)
 
-# rgbled 제어
-# led.color = Color("red")
-# led.color = Color("green")
-# led.color = Color("yellow")
 
 
 if __name__ == "__main__":
