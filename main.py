@@ -57,7 +57,6 @@ def powerctrl():
         #     fan.on()
         # else:
         #     fan.off()
-        
         return
     if power_state == 2:
         power_state = 0
@@ -117,19 +116,19 @@ def display_dust(duststate1, duststate2, duststate3):
     
     # pm1.0 표시
     lcd.lcd_string("pm1.0: %dug/m3 " %duststate1, lcd.LCD_LINE_2)
+    powersw.wait_for_press(timeout=1)
     if powersw.is_pressed:
         return
-    time.sleep(1)
     # pm2.5 표시
     lcd.lcd_string("pm2.5: %dug/m3 " %duststate2, lcd.LCD_LINE_2)
+    powersw.wait_for_press(timeout=1)
     if powersw.is_pressed:
         return
-    time.sleep(1)
     # pm10 표시
     lcd.lcd_string("pm10: %dug/m3  " %duststate3, lcd.LCD_LINE_2)
+    powersw.wait_for_press(timeout=1)
     if powersw.is_pressed:
         return
-    time.sleep(1)
     
 
     
