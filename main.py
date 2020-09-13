@@ -174,10 +174,11 @@ def mainloop():
             fan.off()
             lcd.LCD_BACKLIGHT = 0x00
             lcd.lcd_string("   Power Off   ", lcd.LCD_LINE_1)
+            lcd.lcd_string("", lcd.LCD_LINE_2)
         if power_state == 1:
             print("전원켜짐")
             lcd.LCD_BACKLIGHT = 0x08
-            lcd.lcd_string("   Power On!   ", lcd.LCD_LINE_1)
+            lcd.lcd_string("   Power On    ", lcd.LCD_LINE_1)
             fan.on()
             time.sleep(1)
             display_dust(int(pm1), int(pm25), int(pm10))
