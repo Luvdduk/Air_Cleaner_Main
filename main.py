@@ -1,4 +1,4 @@
-from gpiozero import Button, LED, RGBLED, OutputDevice, DigitalOutputDevice
+from gpiozero import Button, LED, RGBLED, OutputDevice, DigitalOutputDevice, PWMOutputDevice
 from colorzero import Color
 from signal import pause
 from threading import Thread
@@ -10,6 +10,9 @@ import RPi.GPIO as GPIO
 import lcd_i2c as lcd
 
 
+
+ON = 1
+OFF = 0
 
 power_state=0
 
@@ -23,7 +26,15 @@ SERIAL_PORT = '/dev/ttyUSB0'
 
 # led r:16 g:20 b:21
 # 릴레이: 19
-fan = OutputDevice(19)
+
+fan_pwm = PWMOutputDevice(12)
+fan_pin1 = DigitalOutputDevice(5)
+fan_pin2 = DigitalOutputDevice(6)
+ON = 1
+OFF = 0
+HIGH = 1.0
+MID = 0.65
+LOW = 0.3
 # fan = LED(19)
 
 led = RGBLED(16, 20, 21)
@@ -48,11 +59,17 @@ def powerctrl():
     if power_state == 0:
         power_state = 1
         print("전원켬")
+        lcd.LCD_BACKLIGHT = 0x08
+        lcd.lcd_string("   Power On    ", lcd.LCD_LINE_1)
+        powersw.wait_for_press(timeout=1.5)
         # fan.on()
         return
     if power_state == 1:
         power_state = 2
         print("자동모드로 변경")
+        lcd.LCD_BACKLIGHT = 0x08
+        lcd.lcd_string("   Auto Mode   ", lcd.LCD_LINE_1)
+        powersw.wait_for_press(timeout=1.5)
         # if pm25 >=30 :
         #     fan.on()
         # else:
@@ -61,6 +78,9 @@ def powerctrl():
     if power_state == 2:
         power_state = 0
         print("전원끔")
+        lcd.LCD_BACKLIGHT = 0x00
+        lcd.lcd_string("   Power Off   ", lcd.LCD_LINE_1)
+        lcd.lcd_string("", lcd.LCD_LINE_2)
         # fan.off()
         return
 
@@ -115,24 +135,34 @@ def display_dust(duststate1, duststate2, duststate3):
         led.color = Color("red")
     
     # pm1.0 표시
-    lcd.lcd_string("pm1.0: %dug/m3 " %duststate1, lcd.LCD_LINE_2)
-    powersw.wait_for_press(timeout=1)
+    lcd.lcd_string("PM1.0: %dug/m3 " %duststate1, lcd.LCD_LINE_2)
+    powersw.wait_for_press(timeout=2)
     if powersw.is_pressed:
         return
     # pm2.5 표시
-    lcd.lcd_string("pm2.5: %dug/m3 " %duststate2, lcd.LCD_LINE_2)
-    powersw.wait_for_press(timeout=1)
+    lcd.lcd_string("PM2.5: %dug/m3 " %duststate2, lcd.LCD_LINE_2)
+    powersw.wait_for_press(timeout=2)
     if powersw.is_pressed:
         return
     # pm10 표시
-    lcd.lcd_string("pm10: %dug/m3  " %duststate3, lcd.LCD_LINE_2)
-    powersw.wait_for_press(timeout=1)
-    if powersw.is_pressed:
-        return
+    lcd.lcd_string("PM10: %dug/m3  " %duststate3, lcd.LCD_LINE_2)
+    # powersw.wait_for_press(timeout=1.5)
+    # if powersw.is_pressed:
+    #     return
+
+
+
+
+def fan_ctrl(state, speed):
+    fan_pwm.value = speed
+    if state == 1:
+        fan_pin1.on()
+        fan_pin2.off()
+    if state == 0:
+        fan_pin1.off()
+        fan_pin2.on()
     
 
-    
-    
 
 
 
@@ -171,28 +201,31 @@ def mainloop():
 
         if power_state == 0:
             print("전원꺼짐")
-            fan.off()
+            # fan.off()
+            fan_ctrl(ON, )
             lcd.LCD_BACKLIGHT = 0x00
             lcd.lcd_string("   Power Off   ", lcd.LCD_LINE_1)
             lcd.lcd_string("", lcd.LCD_LINE_2)
+            led.off()
         if power_state == 1:
             print("전원켜짐")
-            lcd.LCD_BACKLIGHT = 0x08
-            lcd.lcd_string("   Power On    ", lcd.LCD_LINE_1)
-            fan.on()
-            time.sleep(1)
+            # lcd.LCD_BACKLIGHT = 0x08
+            # lcd.lcd_string("   Power On    ", lcd.LCD_LINE_1)
+            # fan.on()
+            # time.sleep(1)
+            
             display_dust(int(pm1), int(pm25), int(pm10))
         if power_state == 2:
             print("자동모드")
-            lcd.LCD_BACKLIGHT = 0x08
-            lcd.lcd_string("   Auto Mode   ", lcd.LCD_LINE_1)
-            time.sleep(1)
-            display_dust(int(pm1), int(pm25), int(pm10))
+            # lcd.LCD_BACKLIGHT = 0x08
+            # lcd.lcd_string("   Auto Mode   ", lcd.LCD_LINE_1)
+            # time.sleep(1)
             if pm25 >=30 :
-                fan.on()
+                # fan.on()
             else:
-                fan.off()
-        time.sleep(0.3)
+                # fan.off()
+            display_dust(int(pm1), int(pm25), int(pm10))
+        powersw.wait_for_press(timeout=2)
 
 
 
