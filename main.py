@@ -11,9 +11,7 @@ from configparser import ConfigParser
 
 
 
-# 설정파일 로드
-conf = ConfigParser()
-conf.read('config.ini')
+
 
 
 # 전원
@@ -40,12 +38,25 @@ FULL = 1.0
 MID = 0.65
 SLOW = 0.3
 
-fan_pwm.value = conf['FAN']['fan_speed']
-if conf['FAN']['fan_speed'] == FULL:
+
+
+try:
+    # 설정파일 로드
+    conf = ConfigParser()
+    conf.read('config.ini')
+    # 팬속 로드
+    fanspeed = conf['FAN']['fan_speed']
+    fanspeed = float(fanspeed)
+    print("설정파일 팬속도: %f" %fanspeed)
+    fan_pwm.value = fanspeed
+except:
+    print("설정파일 로드 오류")
+
+if fanspeed == FULL:
     fan_state = "FULL"
-elif conf['FAN']['fan_speed'] == MID:
+elif fanspeed == MID:
     fan_state = "MID"
-elif conf['FAN']['fan_speed'] == SLOW:
+elif fanspeed == SLOW:
     fan_state = "SLOW"
 else:
     print("설정파일 로드 오류")
@@ -60,15 +71,15 @@ led = RGBLED(16, 20, 21)
 # led_b = LED(21)
 
 # lcd초기화
-lcd.lcd_init()
+# lcd.lcd_init()
 
 
 
 # 파워 모드변경
-def power():
+def Button_Ctrl():
     global power_state
     powersw.when_pressed = powerctrl
-    fansw.when_pressed = fan_speed
+    fansw.when_pressed = fan_speedsw
     pause()
 # 꺼짐: 0, 켜짐: 1, 자동: 2
 def powerctrl():
@@ -78,14 +89,16 @@ def powerctrl():
         print("전원켬")
         lcd.LCD_BACKLIGHT = 0x08
         lcd.lcd_string("   Power On    ", lcd.LCD_LINE_1)
-        powersw.wait_for_press(timeout=1.5)
+        lcd.lcd_string("", lcd.LCD_LINE_2)
+        time.sleep(2)
         return
     if power_state == 1:
         power_state = 2
         print("자동모드로 변경")
         lcd.LCD_BACKLIGHT = 0x08
         lcd.lcd_string("   Auto Mode   ", lcd.LCD_LINE_1)
-        powersw.wait_for_press(timeout=1.5)
+        lcd.lcd_string("", lcd.LCD_LINE_2)
+        time.sleep(2)
         return
     if power_state == 2:
         power_state = 0
@@ -93,9 +106,9 @@ def powerctrl():
         lcd.LCD_BACKLIGHT = 0x00
         lcd.lcd_string("   Power Off   ", lcd.LCD_LINE_1)
         lcd.lcd_string("", lcd.LCD_LINE_2)
+        time.sleep(2)
         return
 
-        
 
 
 
@@ -105,18 +118,28 @@ def display_dust(duststate1, duststate2, duststate3):
     if duststate3 <= 30 and (duststate1 and duststate2) <= 15 :
         lcd.lcd_string("     GOOD      ", lcd.LCD_LINE_1)
         led.color = Color("blue")
+        if power_state == 2:
+            fan_speed_ctrl(SLOW)
     # 보통
     elif  duststate3 <= 80 or (duststate1 or duststate2) <= 35:
         lcd.lcd_string("     NORMAL    ", lcd.LCD_LINE_1)
         led.color = Color("green")
+        if power_state == 2:
+            fan_speed_ctrl(MID)
     # 나쁨
     elif duststate3 <= 150 or (duststate1 or duststate2) <= 75:
         lcd.lcd_string("      BAD      ", lcd.LCD_LINE_1)
         led.color = Color("yellow")
+        if power_state == 2:
+            fan_speed_ctrl(FULL)
     # 매우나쁨
     elif duststate3 > 150 or (duststate1 or duststate2) <= 75:
         lcd.lcd_string("    VERY BAD   ", lcd.LCD_LINE_1)
         led.color = Color("red")
+        if power_state == 2:
+            fan_speed_ctrl(FULL)
+    else:
+        print("LCD표기 오류 or 먼지센서 데이터 오류")
     
     # pm1.0 표시
     lcd.lcd_string("PM1.0: %dug/m3 " %duststate1, lcd.LCD_LINE_2)
@@ -143,18 +166,40 @@ def fan_power(state):
     else:
         fan_pin1.off()
         fan_pin2.off()
-    
-def fan_speed(speed):
-    
-    if fan_state == "FULL":
-        fan_pwm.value = FULL
+
+
+def fan_speedsw():
+    if fan_state == "SLOW":
+        fan_speed_ctrl(MID)
         return
     if fan_state == "MID":
-        fan_pwm.value = MID 
+        fan_speed_ctrl(FULL)
         return
-    if fan_state == "SLOW":
+    if fan_state == "FULL":
+        fan_speed_ctrl(SLOW)
+        return
+
+
+def fan_speed_ctrl(speed):
+    if speed == SLOW:
         fan_pwm.value = SLOW
+        conf['FAN']['fan_speed'] = SLOW
+        fan_state = "SLOW"
+        print("팬속도 : 느리게")
         return
+    elif speed == MID:
+        fan_pwm.value = MID
+        conf['FAN']['fan_speed'] = MID
+        fan_state = "MID"
+        print("팬속도 : 중간")
+        return
+    elif speed == FULL:
+        fan_pwm.value = FULL
+        conf['FAN']['fan_speed'] = FULL
+        fan_state = "FULL"
+        print("팬속도 : 최고")
+        return
+
 
 
 
@@ -166,6 +211,8 @@ def loop():
     global led
 
     while True:
+        # lcd초기화
+        lcd.lcd_init()
         # 먼지센서 동작
         ser = serial.Serial(SERIAL_PORT, Speed, timeout = 1)
         buffer = ser.read(1024)
@@ -182,9 +229,6 @@ def loop():
             
             
             print ("PMS 7003 dust data")
-            # print ("PM 1.0 : %s" % (data[dustlib.DUST_PM1_0_ATM]))
-            # print ("PM 2.5 : %s" % (data[dustlib.DUST_PM2_5_ATM]))
-            # print ("PM 10.0 : %s" % (data[dustlib.DUST_PM10_0_ATM]))
             print ("PM 1.0 : %s" % (pm1))
             print ("PM 2.5 : %s" % (pm25))
             print ("PM 10.0 : %s" % (pm10))
@@ -195,7 +239,6 @@ def loop():
 
         if power_state == 0:
             print("전원꺼짐")
-            # fan.off()
             fan_power(OFF)
             lcd.LCD_BACKLIGHT = 0x00
             lcd.lcd_string("   Power Off   ", lcd.LCD_LINE_1)
@@ -204,17 +247,9 @@ def loop():
         if power_state == 1:
             print("전원켜짐")
             fan_power(ON)
-            # lcd.LCD_BACKLIGHT = 0x08
-            # lcd.lcd_string("   Power On    ", lcd.LCD_LINE_1)
-            # fan.on()
-            # time.sleep(1)
-            
             display_dust(int(pm1), int(pm25), int(pm10))
         if power_state == 2:
             print("자동모드")
-            # lcd.LCD_BACKLIGHT = 0x08
-            # lcd.lcd_string("   Auto Mode   ", lcd.LCD_LINE_1)
-            # time.sleep(1)
             if pm25 >=30 :
                 fan_power(ON)
             else:
@@ -227,7 +262,6 @@ def loop():
 
 if __name__ == "__main__":
     # 쓰레딩
-    Thread(target=power).start()
+    Thread(target=Button_Ctrl).start()
     Thread(target=loop).start()
-    # Thread(target=update_Dust).start()
     
