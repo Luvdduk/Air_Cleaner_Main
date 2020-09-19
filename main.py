@@ -109,31 +109,69 @@ def powerctrl():
         time.sleep(2)
         return
 
+# 팬 제어
+def fan_power(state):
+    if state:
+        fan_pin1.on()
+        fan_pin2.off()
+    else:
+        fan_pin1.off()
+        fan_pin2.off()
+
+def fan_speedsw():
+    if fan_state == "SLOW":
+        fan_speed_ctrl(MID)
+        return
+    if fan_state == "MID":
+        fan_speed_ctrl(FULL)
+        return
+    if fan_state == "FULL":
+        fan_speed_ctrl(SLOW)
+        return
+
+def fan_speed_ctrl(speed):
+    if speed == SLOW:
+        fan_pwm.value = speed
+        conf['FAN']['fan_speed'] = speed
+        fan_state = "SLOW"
+        print("팬속도 : 느리게")
+        return
+    elif speed == MID:
+        fan_pwm.value = speed
+        conf['FAN']['fan_speed'] = speed
+        fan_state = "MID"
+        print("팬속도 : 중간")
+        return
+    elif speed == FULL:
+        fan_pwm.value = speed
+        conf['FAN']['fan_speed'] = speed
+        fan_state = "FULL"
+        print("팬속도 : 최고")
+        return
+
 
 
 
 
 def display_dust(duststate1, duststate2, duststate3):
     # 좋음
-    if duststate3 <= 30 and (duststate1 and duststate2) <= 15 :
+    if duststate3 <= 30 and (duststate1 + duststate2) <= 15 :
         lcd.lcd_string("     GOOD      ", lcd.LCD_LINE_1)
         led.color = Color("blue")
-        if power_state == 2:
-            fan_speed_ctrl(SLOW)
     # 보통
-    elif  duststate3 <= 80 or (duststate1 or duststate2) <= 35:
+    elif  duststate3 <= 80 and (duststate1 + duststate2) <= 35:
         lcd.lcd_string("     NORMAL    ", lcd.LCD_LINE_1)
         led.color = Color("green")
         if power_state == 2:
-            fan_speed_ctrl(MID)
+            fan_speed_ctrl(SLOW)
     # 나쁨
-    elif duststate3 <= 150 or (duststate1 or duststate2) <= 75:
+    elif duststate3 <= 150 and (duststate1 + duststate2) <= 75:
         lcd.lcd_string("      BAD      ", lcd.LCD_LINE_1)
         led.color = Color("yellow")
         if power_state == 2:
-            fan_speed_ctrl(FULL)
+            fan_speed_ctrl(MID)
     # 매우나쁨
-    elif duststate3 > 150 or (duststate1 or duststate2) <= 75:
+    elif duststate3 > 150 or (duststate1 + duststate2) > 75:
         lcd.lcd_string("    VERY BAD   ", lcd.LCD_LINE_1)
         led.color = Color("red")
         if power_state == 2:
@@ -159,52 +197,6 @@ def display_dust(duststate1, duststate2, duststate3):
 
 
 
-def fan_power(state):
-    if state:
-        fan_pin1.on()
-        fan_pin2.off()
-    else:
-        fan_pin1.off()
-        fan_pin2.off()
-
-
-def fan_speedsw():
-    if fan_state == "SLOW":
-        fan_speed_ctrl(MID)
-        return
-    if fan_state == "MID":
-        fan_speed_ctrl(FULL)
-        return
-    if fan_state == "FULL":
-        fan_speed_ctrl(SLOW)
-        return
-
-
-def fan_speed_ctrl(speed):
-    if speed == SLOW:
-        fan_pwm.value = SLOW
-        conf['FAN']['fan_speed'] = SLOW
-        fan_state = "SLOW"
-        print("팬속도 : 느리게")
-        return
-    elif speed == MID:
-        fan_pwm.value = MID
-        conf['FAN']['fan_speed'] = MID
-        fan_state = "MID"
-        print("팬속도 : 중간")
-        return
-    elif speed == FULL:
-        fan_pwm.value = FULL
-        conf['FAN']['fan_speed'] = FULL
-        fan_state = "FULL"
-        print("팬속도 : 최고")
-        return
-
-
-
-
-
-
 # 메인루프
 def loop():
     global power_state
@@ -223,15 +215,13 @@ def loop():
             global pm1
             global pm25
             global pm10
-            pm1 = data[dustlib.DUST_PM1_0_ATM]
-            pm25 = data[dustlib.DUST_PM2_5_ATM]
-            pm10 = data[dustlib.DUST_PM10_0_ATM]
-            
-            
+            pm1 = int(data[dustlib.DUST_PM1_0_ATM])
+            pm25 = int(data[dustlib.DUST_PM2_5_ATM])
+            pm10 = int(data[dustlib.DUST_PM10_0_ATM])
             print ("PMS 7003 dust data")
-            print ("PM 1.0 : %s" % (pm1))
-            print ("PM 2.5 : %s" % (pm25))
-            print ("PM 10.0 : %s" % (pm10))
+            print ("PM 1.0 : %d" % (pm1))
+            print ("PM 2.5 : %d" % (pm25))
+            print ("PM 10.0 : %d" % (pm10))
         else:
             print ("data read Err")
         
@@ -247,14 +237,15 @@ def loop():
         if power_state == 1:
             print("전원켜짐")
             fan_power(ON)
-            display_dust(int(pm1), int(pm25), int(pm10))
+            display_dust(pm1, pm25, pm10)
         if power_state == 2:
             print("자동모드")
-            if pm25 >=30 :
-                fan_power(ON)
-            else:
+            if pm10 <= 30 and (pm1 + pm25) <= 15 :
                 fan_power(OFF)
-            display_dust(int(pm1), int(pm25), int(pm10))
+            else:
+                fan_power(ON)
+            
+            display_dust(pm1, pm25, pm10)
         # powersw.wait_for_press(timeout=2)
         time.sleep(1)
 
